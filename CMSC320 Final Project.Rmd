@@ -1,0 +1,311 @@
+---
+title: "CMSC320 Final Project"
+author: "Deena Postol"
+date: "5/22/2019"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+Data science is the study of managing data; how to handle and understand the data you've been given. The data science pipeline is the process of  using data to gain a new understanding about something. The process involves  getting the data, exploring the data, creating and testing hypothesis and finally reaching a conclusion. This tutorial will walk you through a simple example of the data science pipeline. 
+Step 1: Start with a goal.
+There is data for nearly every topic. Data science has applications in every field and there is an abundance of data, much of it available for public use. You usually want to start with a goal when you begin your datascience pipeline. The goal can be very specific, but sometimes you can just want to find out more about trends and relationships in the data. For this tutorial I will explore education and how certain factors can effect student's exam scores. 
+
+Step 2: Gather data.
+There are several ways to find data. Many different websites exist that have datasets which you can download. You can also get data directly from websites by scraping them, although that will not be discussed at this time. I found this particular dataset on kaggle.com. It can be found here: https://www.kaggle.com/spscientist/students-performance-in-exams/downloads/students-performance-in-exams.zip/1. I downloaded it as a comma separated values or CSV file. Once I saved the file locally I can use it in my r code. Now that I have the data saved, I want to get it into an r table, so I can perform operations on the data more easily. I will use the  read_csv function to read the file into a table and save it into the variable edu_tbl.
+
+```{r blah, message = FALSE}
+#these are libraries needed for these functions
+library(tidyr)
+library(tidyverse) 
+#read in from the file
+edu_tbl <- read_csv("StudentsPerformance.csv")
+edu_tbl
+```
+There are other common file types that datasets are usually stored in and you can use different r functions to read from them. The read_csv function does a lot of work for us. It reads in the column names as well as all of the values and is able to decide what the datatype for each column should be. For example "gender" and "lunch" store character strings, and "math score" and "reading score" store numbers. 
+
+The function might also replace any blank entries with NA, r's way of encoding missing entries. The description of this file does not mention that there is any particular way that missing entries are marked, and there do not seem to be any missing entries so I will not worry about that. In some cases you may have to find and replace missing entries. 
+
+Often it is necessary to clean the data a little bit. This could invlove changing the values of entries to be in a more useful format. For example if the data was percentages, and the csv file had a % after every number. The % symbol would need to be removed so that you could do numeric operations on the values. The only problem with this dataset is that some of the column names from the file have spaces. This will cause a few problems when trying to access the column since r might read the name as multiple words. I will rename the columns to make things easier in the long run. I will also make the categorical atrributes factors. This is just a way to tell r that there is a finite number of values that the attribute can take on.
+
+```{r rename_cols}
+#rename the columns
+names(edu_tbl) <- c("gender", "race_ethnicity", "parental_education", "lunch", "test_prep", "math_score", "reading_score", "writing_score")
+#change these columns to be factors instead of just strings
+edu_tbl$gender<- factor(edu_tbl$gender)
+edu_tbl$race_ethnicity<- factor(edu_tbl$race_ethnicity)
+edu_tbl$parental_education<- factor(edu_tbl$parental_education)
+edu_tbl$lunch<- factor(edu_tbl$lunch)
+edu_tbl$test_prep<- factor(edu_tbl$test_prep)
+edu_tbl
+```
+
+Before we begin analyzing the data, let us understand what the data in the table means. The table has rows, which are called entities, and columns which are called attributes. Each row represents a student and the columns are the attributes of that student. This dataset has eight attributes for each entity. Atrributes can be any kind of data and there are two main groups used to catagorize them; catagorical and nuerical. The catagorical attributes are attributes that can anly be a finite number of values, anything that is a string of characters is usally a catagorical attribute. The nummeric attributes are numbers. In this dataset the three score columns are numeric and the other columns are catagorical. It is important to know what the type of the attribute is, since there are certain procedures that only work for one or the other. 
+
+Step 3: Exploratory data analysis.
+Let's start by doing a few simple plots to see if we can notice any trends in the data. 
+What is the relationship between race and math scores? I will be using the r pipline function %>% which allows me to perform a sequence of commands on a dataset. Bar graphs are a good way to graph numeric data against catagorical data.
+
+```{r ethinicity_math}
+#this is a pipeline
+ethnicity_math <- edu_tbl%>%
+  #select race and math from edu_tbl
+  select(race_ethnicity, math_score)%>%
+  group_by(race_ethnicity)%>%
+  #group by gender and let the math score for each gender be the average
+  summarise(avg_math = mean(math_score))
+```
+
+```{r first_plot}
+ethnicity_math%>%
+  #create a bar graph with race as the x value and avg_math as the y value
+  ggplot(mapping = aes(x = race_ethnicity, y = avg_math)) +
+  geom_bar(stat = "identity")
+```
+From this we can see that group E has the highest average math score and group A has the lowest. However there does not seem to be that much difference between the average scores, there is a less than twenty point difference between group A and group E.
+
+How about the relationship between gender and math scores?
+```{r gender_math}
+gender_math <- edu_tbl%>%
+  #select gender and math scores
+  select(gender, math_score)%>%
+  group_by(gender)%>%
+  #let the math score grouped by gender by the average math score
+  summarise(avg_math = mean(math_score))
+```
+
+```{r gender_math_plot}
+gender_math%>%
+  #create a bar graph with race as the x value and avg_math as the y value
+  ggplot(mapping = aes(x = gender, y = avg_math)) +
+  geom_bar(stat = "identity")
+```
+It seems like males have higher math scores on average, although the difference between male and female is less than 10 points.
+
+What about if we average together all of the tests scores for all of the subjects (math, reading and writing).this will be done for each student individually.
+
+Let's look at the relationship between gender and overall scores in all classes. 
+```{r gender_total_score}
+#this is a function definition for a function that takes 3 arguments and computes their average
+avg<-function(mth, read, write){
+  (mth + read + write)/3
+}
+#creating a new column in edu_tbl
+edu_tbl$total_score <- avg(edu_tbl$math_score, edu_tbl$reading_score, edu_tbl$writing_score)
+#this pipeline is similar to previous ones
+gender_score <- edu_tbl%>%
+  select(gender, total_score)%>%
+  group_by(gender)%>%
+  summarise(avg_score = mean(total_score))
+```
+
+```{r gender_total_plot}
+#create a bar graph
+gender_score%>%
+  ggplot(mapping = aes(x = gender, y = avg_score)) +
+  geom_bar(stat = "identity")
+```
+It seems that even though male students have better math scores on average than female students, female students get better average grades on all subjects. This would suggest that female students do better than male students in reading in writing.
+
+How about the relationship between race and average score over all tests?
+```{r ethinicity_total}
+#create a new data table to plot
+ethnicity_score<-edu_tbl%>%
+  select(race_ethnicity, total_score)%>%
+  group_by(race_ethnicity)%>%
+  #group by race an compute average total score for race
+  summarise(avg_score = mean(total_score))
+#plot race vs total score as a bar graph
+ethnicity_score%>%
+  ggplot(mapping = aes(x = race_ethnicity, y = avg_score)) +
+  geom_bar(stat = "identity")
+```
+For race the graph looks almost the same as for math. Group E still has the best scores and group A still has the lowest average score. 
+
+But this has all been with average grades. It is possible that there are outliers that are affecting the total average. Let's look a little bit at distribution. 
+
+Let's look at the distribution of average scores grouped by gender. 
+```{r average_scores_dist}
+#create a violin plot for gender vs total score
+edu_tbl%>%
+  ggplot(mapping = aes(x = gender, y = total_score)) + 
+  geom_violin()
+
+```
+As we already saw, the average cumulative score for a female student is a little bit better than for a male student. From this plot though, we can see that female students test scores take on more values than male students. 
+We saw earlier that male students have a higher average math score than the females. And that females have higher average reading and writing scores. Let us look at the distributions for those three subjects. We can plot all three together.
+
+```{r gender_dst}
+require(cowplot)
+#this allows us to plot multiple graphs next to each other
+#create a box_plot for math vs gender
+math<-
+  ggplot(edu_tbl, mapping = aes(y = math_score, x = gender)) + 
+  geom_boxplot() +
+  ggtitle("Distribution of math scores")
+
+#create a box_plot for reading vs gender
+reading<- ggplot(edu_tbl, mapping = aes(y = reading_score, x = gender)) +
+  geom_boxplot() +
+  ggtitle("Distribution of reading scores")
+
+#create a box_plot for writing vs gender
+writing<- ggplot(edu_tbl, mapping = aes(y = writing_score, x = gender)) +
+  geom_boxplot() +
+  ggtitle("Distribution of writing scores")
+
+#plot all graphs
+plot_grid(math, reading, writing)
+```
+We can see again that female students have a greater spread than male students. It seems like, while girls on average have higher grades, boys grades are more consistently close to the mean.
+
+What about total trends in academic achievement? Does your grade on a math test say anything about the grades you might get on the other exams? Let's plot reading scores against math scores and reading scores against writing scores and see if there is any trend.
+```{r reading_math}
+#create scatter plot for math vs reading
+rm<-edu_tbl%>%
+  ggplot(mapping = aes(x = math_score, y = reading_score)) +
+  geom_point() +
+   ggtitle("reading vs math")
+
+rw<-edu_tbl%>%
+  #create scatter plot for reading vs writing
+  ggplot(mapping = aes(x = writing_score, y = reading_score)) + geom_point()  +
+  ggtitle("reading vs writing")
+
+#plot both graphs
+plot_grid(rm, rw)
+```
+It looks like the data points for both plots are lying along the line y = x. This would imply that a student's math score on a test is likely to be similar to their reading score. There is also less spread on the reading vs writing plot, so a student's reading score is likely going to be very close to their writing score. 
+
+We can use linear regression to confirm our hypothesis.
+```{r lin}
+#this is the same except now we use geom_smooth which adds a regression line
+rm<-edu_tbl%>%
+  ggplot(mapping = aes(x = math_score, y = reading_score)) +
+  geom_point() +
+   ggtitle("reading vs math")+
+  geom_smooth(method = lm)
+
+rw<-edu_tbl%>%
+  ggplot(mapping = aes(x = writing_score, y = reading_score)) + geom_point()  +
+  ggtitle("reading vs writing") +
+  geom_smooth(method = lm)
+plot_grid(rm, rw)
+```
+Step 5: Machine Learning
+Suppose we want to have a better way to decide which attributes effect each other, and we also want to predict what an atrribute might be if we know the other attributes for a given entity. This is where we can use machine learning. 
+
+We can use linear regression to make predictions. A simple explanation for linear regression is solving a linear equation in a number of variables so that you can predict attributes in your data. For example if we wanted to see whether a student's writing score is based on their math and reading score we would want to find coefficients a and b such that writing score = a + b*math score. In this case the reading score would be the intercept, it is the default. The program will find coefficients that fit the problem so that the equality is true for the data, then we can assume if we are given a new entity we can make predictions for it based on what we already have.
+
+Let's try a few linear regression models.
+Let's start by predicting reading score based on math score.
+```{r lin_rg1}
+#create a linear regression model for reading score based on math
+edu_fit<-lm(reading_score~math_score, data=edu_tbl)
+edu_fit
+````
+In this case we have that reading score = 17.1418 + 0.7872(math score). This means that if the math score was 0 the reading score is predicted to be approximately 17. And on average the reading score is about 0.7872 more points for every point from the math exam. 
+
+Now let us see the relationship between reading, writing and math. How will the coefficient for the math score change if we factor in the writing score?
+```{r lin_rg2}
+#create a linear regression model for reading based on math and writing
+edu_fit<-lm(reading_score~math_score*writing_score, data=edu_tbl)
+edu_fit %>%
+  broom::tidy()%>%
+  knitr::kable()
+````
+We can see that the coefficient for the math score is a bit higher, but the intercept is much smaller. We can see now that using this model, if a student got a zero on both their writing and math exams then they are predicted to get a 7 on their reading exam. 
+
+Now let's look at math_score.
+```{r lin_rg3}
+
+edu_fit<-lm(math_score~reading_score*writing_score, data=edu_tbl)
+edu_fit %>%
+  broom::tidy() %>% 
+  knitr::kable()
+````
+Suppose that we want to have the best possible model to predict a student's total_score. We probaly want to add some categorical factors into our linear model. It is possible to add categorical values to linear regression models, but it is not always useful. We can analize the usefulness of adding a categorical value to our linear regression model by checking if the categorical value has a significant relationship with the linear model. Let's see if parental education has a significant impact on our existing model for reading_score.
+We will plot the residuals, which are a measure of the accuracy of the model, against the different categorical values and see which ones should be added to the model.
+```{r residual1}
+broom::augment(edu_fit)%>%
+  inner_join(edu_tbl, by = c("math_score" = "math_score", "writing_score" = "writing_score", "reading_score" = "reading_score"))%>%
+  ggplot(aes(x = gender, y= .resid)) +
+  geom_boxplot()
+```
+For this plot the residuals are not close to zero and are significantly different from each other. So we should add this to out model.
+
+```{r residual2}
+broom::augment(edu_fit)%>%
+  inner_join(edu_tbl, by = c("math_score" = "math_score", "writing_score" = "writing_score", "reading_score" = "reading_score"))%>%
+  ggplot(aes(x = race_ethnicity, y= .resid)) +
+  geom_boxplot()
+```
+While there are some differences race/ethinicity seems to close to 0, so let's not add it to our model.
+
+```{r residual3}
+broom::augment(edu_fit)%>%
+  inner_join(edu_tbl, by = c("math_score" = "math_score", "writing_score" = "writing_score", "reading_score" = "reading_score"))%>%
+  ggplot(aes(x = parental_education, y= .resid)) +
+  geom_boxplot()
+```
+The residuals for this are also close to zero, so this variable is not useful for predicting math_score.
+
+```{r residual4}
+broom::augment(edu_fit)%>%
+  inner_join(edu_tbl, by = c("math_score" = "math_score", "writing_score" = "writing_score", "reading_score" = "reading_score"))%>%
+  ggplot(aes(x = lunch, y= .resid)) +
+  geom_boxplot()
+```
+
+```{r residual5}
+broom::augment(edu_fit)%>%
+  inner_join(edu_tbl, by = c("math_score" = "math_score", "writing_score" = "writing_score", "reading_score" = "reading_score"))%>%
+  ggplot(aes(x =test_prep, y= .resid)) +
+  geom_boxplot()
+```
+The residuals for lunch and test prep are also both near zero. So while there are relationships between the moath score and the categorical attributes, the only one that is really a good predictor is gender. So we will add gender to edu_fit which should give us the best model for math_score.
+
+```{r bestfit}
+#create best linear model
+best_fit<-lm(math_score~reading_score*writing_score*gender, data=edu_tbl)
+best_fit %>%
+  broom::tidy() %>% 
+  knitr::kable()
+```
+
+Since the dataset has mostly categorical attributes, we will can try a different model, a decision tree. This methods divides the possiblities into sections. You can follow the decision process that it makes by going down the branches until you hit a leaf. At each node take the branch that fits your entity and at the end you will get your approximation.
+
+```{r tree, message=FALSE, warning=FALSE}
+library(party)
+#rename this column
+names(edu_tbl)[9]<-"total_score"
+#Create the decision tree
+tree <- ctree(
+  math_score ~gender*race_ethnicity*parental_education*lunch*test_prep*writing_score*reading_score, 
+  data = edu_tbl, control = ctree_control(maxdepth = 4))
+
+# Plot the tree.
+plot(tree)
+
+```
+We can see that although the prediction is mostly dependent on reading and writing score it also uses gender, which matches what we found in our linear model. 
+
+Now we have seen two different ways to model our data, and we can use those to make predictions.
+
+Additional Resources:
+More datasets:
+kaggle.com
+data.gov
+
+Scraping:
+https://www.analyticsvidhya.com/blog/2017/03/beginners-guide-on-web-scraping-in-r-using-rvest-with-hands-on-knowledge/
+
+For more information on r and r packages use the r documentation:
+https://www.rdocumentation.org/
+
+Data science in general:
+http://www.hcbravo.org/IntroDataSci/bookdown-notes/
+
+
+
+
